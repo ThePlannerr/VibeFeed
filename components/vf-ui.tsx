@@ -131,12 +131,18 @@ export function Input({
   placeholder,
   keyboardType,
   disabled,
+  secureTextEntry,
+  autoCapitalize,
+  autoCorrect,
 }: {
   value: string;
   onChangeText: (value: string) => void;
   placeholder: string;
-  keyboardType?: 'default' | 'numeric';
+  keyboardType?: 'default' | 'numeric' | 'email-address';
   disabled?: boolean;
+  secureTextEntry?: boolean;
+  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
+  autoCorrect?: boolean;
 }) {
   return (
     <TextInput
@@ -144,6 +150,9 @@ export function Input({
       onChangeText={onChangeText}
       placeholder={placeholder}
       keyboardType={keyboardType}
+      secureTextEntry={secureTextEntry}
+      autoCapitalize={autoCapitalize}
+      autoCorrect={autoCorrect}
       placeholderTextColor={VibeTheme.textMuted}
       editable={!disabled}
       style={[styles.input, disabled ? styles.inputDisabled : undefined]}

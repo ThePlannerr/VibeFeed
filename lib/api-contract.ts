@@ -1,7 +1,9 @@
 export const API_V1_ROUTES = {
+  authDeleteAccount: 'POST /v1/auth/delete-account',
   sessionStart: 'POST /v1/session/start',
   onboardingSeed: 'POST /v1/onboarding/seed',
   recsFeed: 'GET /v1/recs/feed?cursor=...',
+  recsWhyTags: 'POST /v1/recs/why-tags',
   recsInteraction: 'POST /v1/recs/interaction',
   watchPulse: 'POST /v1/watch/pulse',
   watchlist: 'GET /v1/watchlist',

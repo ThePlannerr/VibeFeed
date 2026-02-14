@@ -14,10 +14,11 @@ import {
   Section,
 } from '@/components/vf-ui';
 import { useAppState } from '@/context/app-state';
+import { DELETE_ACCOUNT_CONFIRMATION } from '@/lib/auth';
 
 export default function ProfilePreferencesScreen() {
   const router = useRouter();
-  const { state, patchProfilePreferences, getKpis } = useAppState();
+  const { auth, deleteAccount, getKpis, patchProfilePreferences, signOut, state } = useAppState();
   const [blockedGenres, setBlockedGenres] = useState<string[]>(state.profile.blocked_genres);
   const [runtimeMin, setRuntimeMin] = useState(
     state.profile.runtime_pref ? `${state.profile.runtime_pref.min}` : '',
@@ -30,6 +31,9 @@ export default function ProfilePreferencesScreen() {
   const [moreLike, setMoreLike] = useState(state.profile.more_like_title_id ?? '');
   const [lessLike, setLessLike] = useState(state.profile.less_like_title_id ?? '');
   const [saving, setSaving] = useState(false);
+  const [accountBusy, setAccountBusy] = useState<'sign_out' | 'delete' | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [accountMessage, setAccountMessage] = useState<string | null>(null);
 
   const kpis = getKpis();
   const candidateTitles = useMemo(
@@ -72,8 +76,67 @@ export default function ProfilePreferencesScreen() {
     }
   };
 
+  const onSignOut = async () => {
+    setAccountBusy('sign_out');
+    const result = await signOut();
+    setAccountMessage(result.message);
+    setAccountBusy(null);
+    if (result.ok) {
+      router.replace('/onboarding-start');
+    }
+  };
+
+  const onDeleteAccount = async () => {
+    setAccountBusy('delete');
+    const result = await deleteAccount(deleteConfirmation);
+    setAccountMessage(result.message);
+    setAccountBusy(null);
+    if (result.ok) {
+      router.replace('/onboarding-start');
+    }
+  };
+
   return (
     <AppShell title="Profile and Preferences" subtitle="Minimal and explicit data controls, with Pro discovery tuning.">
+      <Section title="Account">
+        {auth.status === 'signed_in' ? (
+          <>
+            <Text>Signed in as: {auth.email ?? auth.userId}</Text>
+            <Text>
+              Email verification: {auth.emailConfirmedAt ? `confirmed at ${auth.emailConfirmedAt}` : 'pending'}
+            </Text>
+            <Row>
+              <GhostButton
+                label={accountBusy === 'sign_out' ? 'Signing out...' : 'Sign Out'}
+                onPress={onSignOut}
+                disabled={accountBusy !== null}
+              />
+            </Row>
+            <Label>Type {DELETE_ACCOUNT_CONFIRMATION} to permanently delete account</Label>
+            <Input
+              value={deleteConfirmation}
+              onChangeText={setDeleteConfirmation}
+              placeholder={DELETE_ACCOUNT_CONFIRMATION}
+              keyboardType="default"
+              autoCapitalize="characters"
+              autoCorrect={false}
+              disabled={accountBusy !== null}
+            />
+            <GhostButton
+              label={accountBusy === 'delete' ? 'Deleting account...' : 'Delete Account Permanently'}
+              onPress={onDeleteAccount}
+              disabled={accountBusy !== null}
+            />
+          </>
+        ) : (
+          <>
+            <Text>Guest session active. Sign in on onboarding to attach your data to an account.</Text>
+            <GhostButton label="Go to Sign In" onPress={() => router.replace('/onboarding-start')} />
+          </>
+        )}
+        {accountMessage ? <Text>{accountMessage}</Text> : null}
+      </Section>
+
       <Section title="Core Preferences (Free)">
         <Label>Blocked genres</Label>
         <Row>

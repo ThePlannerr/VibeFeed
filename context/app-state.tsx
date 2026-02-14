@@ -2,6 +2,19 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
 import { TITLES } from '@/constants/catalog';
+import {
+  AuthActionResult,
+  AuthSnapshot,
+  DELETE_ACCOUNT_CONFIRMATION,
+  getSupabaseClient,
+  isAuthConfigured,
+  toAuthErrorMessage,
+  toAuthSnapshot,
+  validateEmail,
+  validatePassword,
+} from '@/lib/auth';
+import { APP_ENV } from '@/lib/env';
+import { enrichWhyTagsWithLlm } from '@/lib/llm';
 import { buildRecommendationFeed } from '@/lib/recommendation';
 import {
   FeedResponse,
@@ -21,8 +34,11 @@ import {
   Title,
 } from '@/types/domain';
 
-const STORAGE_KEY = 'vibefeed:mvp:state:v1';
+const STORAGE_KEY_PREFIX = 'vibefeed:mvp:state:v2';
 const FEED_PAGE_SIZE = 8;
+
+const guestStorageKey = () => `${STORAGE_KEY_PREFIX}:guest`;
+const userStorageKey = (userId: string) => `${STORAGE_KEY_PREFIX}:user:${userId}`;
 
 const EMPTY_STATE: AppStateSnapshot = {
   session: null,
@@ -54,8 +70,13 @@ type PatchProfileResult = {
 type AppStateContextValue = {
   hydrated: boolean;
   state: AppStateSnapshot;
+  auth: AuthSnapshot;
   catalog: Title[];
   startSession: () => Promise<SessionStartResponse>;
+  signUpWithEmail: (email: string, password: string) => Promise<AuthActionResult>;
+  signInWithEmail: (email: string, password: string) => Promise<AuthActionResult>;
+  signOut: () => Promise<AuthActionResult>;
+  deleteAccount: (confirmation: string) => Promise<AuthActionResult>;
   submitOnboardingSeed: (seed: OnboardingSeedRequest) => Promise<OnboardingSeedResponse>;
   fetchFeed: (cursor?: string | null) => Promise<FeedResponse>;
   submitInteraction: (request: RecsInteractionRequest) => Promise<void>;
@@ -80,6 +101,29 @@ const newId = (prefix: string) => {
   return `${prefix}_${Date.now()}_${random}`;
 };
 
+const buildSession = (userId: string, anonymous: boolean): SessionState => ({
+  session_id: newId('session'),
+  user_id: userId,
+  anonymous,
+  created_at: new Date().toISOString(),
+});
+
+const emptyAuthSnapshot = (): AuthSnapshot => ({
+  enabled: isAuthConfigured(),
+  status: isAuthConfigured() ? 'loading' : 'signed_out',
+  userId: null,
+  email: null,
+  emailConfirmedAt: null,
+});
+
+const signedOutAuthSnapshot = (): AuthSnapshot => ({
+  enabled: isAuthConfigured(),
+  status: 'signed_out',
+  userId: null,
+  email: null,
+  emailConfirmedAt: null,
+});
+
 const isProField = (key: keyof ProfilePreferencesResponse) => {
   return (
     key === 'runtime_pref' ||
@@ -92,20 +136,96 @@ const isProField = (key: keyof ProfilePreferencesResponse) => {
 
 export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AppStateSnapshot>(EMPTY_STATE);
+  const [auth, setAuth] = useState<AuthSnapshot>(() => emptyAuthSnapshot());
+  const [storageKey, setStorageKey] = useState<string>(guestStorageKey());
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
+    if (!isAuthConfigured()) {
+      setAuth(signedOutAuthSnapshot());
+      return;
+    }
+
+    const client = getSupabaseClient();
     let cancelled = false;
+
     (async () => {
       try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        if (!cancelled && raw) {
-          const parsed = JSON.parse(raw) as AppStateSnapshot;
-          setState({
-            ...EMPTY_STATE,
-            ...parsed,
-            profile: { ...DEFAULT_PROFILE, ...parsed.profile },
-          });
+        const { data, error } = await client.auth.getSession();
+        if (cancelled) {
+          return;
+        }
+
+        if (error) {
+          setAuth(signedOutAuthSnapshot());
+          return;
+        }
+
+        setAuth(toAuthSnapshot(data.session));
+      } catch {
+        if (!cancelled) {
+          setAuth(signedOutAuthSnapshot());
+        }
+      }
+    })();
+
+    const { data } = client.auth.onAuthStateChange((_event, session) => {
+      if (cancelled) {
+        return;
+      }
+      setAuth(toAuthSnapshot(session));
+    });
+
+    return () => {
+      cancelled = true;
+      data.subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (auth.status === 'loading') {
+      return;
+    }
+
+    let cancelled = false;
+    const nextStorageKey = auth.userId ? userStorageKey(auth.userId) : guestStorageKey();
+
+    setHydrated(false);
+    setStorageKey(nextStorageKey);
+
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(nextStorageKey);
+        if (cancelled) {
+          return;
+        }
+
+        const parsed = raw ? (JSON.parse(raw) as AppStateSnapshot) : null;
+        let nextState: AppStateSnapshot = {
+          ...EMPTY_STATE,
+          ...(parsed ?? {}),
+          profile: { ...DEFAULT_PROFILE, ...(parsed?.profile ?? {}) },
+        };
+
+        if (auth.userId) {
+          const hasCurrentUserSession = nextState.session?.user_id === auth.userId;
+          nextState = {
+            ...nextState,
+            session: hasCurrentUserSession
+              ? { ...nextState.session!, anonymous: false }
+              : buildSession(auth.userId, false),
+          };
+        } else if (nextState.session && !nextState.session.anonymous) {
+          nextState = {
+            ...nextState,
+            session: null,
+          };
+        }
+
+        setState(nextState);
+      } catch {
+        if (!cancelled) {
+          setState(auth.userId ? { ...EMPTY_STATE, session: buildSession(auth.userId, false) } : EMPTY_STATE);
         }
       } finally {
         if (!cancelled) {
@@ -117,17 +237,17 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [auth.status, auth.userId]);
 
   useEffect(() => {
     if (!hydrated) {
       return;
     }
 
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state)).catch(() => {
+    AsyncStorage.setItem(storageKey, JSON.stringify(state)).catch(() => {
       // Non-blocking persistence path; app still works in-memory.
     });
-  }, [hydrated, state]);
+  }, [hydrated, state, storageKey]);
 
   const updateState = (updater: (previous: AppStateSnapshot) => AppStateSnapshot) => {
     setState((previous) => updater(previous));
@@ -152,15 +272,174 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       return state.session;
     }
 
-    const session: SessionState = {
-      session_id: newId('session'),
-      user_id: newId('anon'),
-      anonymous: true,
-      created_at: new Date().toISOString(),
-    };
-
+    const session = auth.userId ? buildSession(auth.userId, false) : buildSession(newId('anon'), true);
     updateState((previous) => ({ ...previous, session }));
     return session;
+  };
+
+  const signUpWithEmail: AppStateContextValue['signUpWithEmail'] = async (email, password) => {
+    if (!auth.enabled) {
+      return { ok: false, message: 'Auth is not configured yet.' };
+    }
+
+    const validatedEmail = validateEmail(email);
+    if (!validatedEmail.ok) {
+      return { ok: false, message: validatedEmail.message };
+    }
+
+    const validatedPassword = validatePassword(password);
+    if (!validatedPassword.ok) {
+      return { ok: false, message: validatedPassword.message };
+    }
+
+    try {
+      const client = getSupabaseClient();
+      const { data, error } = await client.auth.signUp({
+        email: validatedEmail.value,
+        password,
+      });
+
+      if (error) {
+        return { ok: false, message: error.message };
+      }
+
+      const requiresEmailVerification = !data.session;
+      if (requiresEmailVerification) {
+        return {
+          ok: true,
+          message: 'Account created. Confirm your email, then sign in.',
+          requiresEmailVerification: true,
+        };
+      }
+
+      return { ok: true, message: 'Account created and signed in.' };
+    } catch (error) {
+      return {
+        ok: false,
+        message: toAuthErrorMessage(error, 'Unable to create account right now.'),
+      };
+    }
+  };
+
+  const signInWithEmail: AppStateContextValue['signInWithEmail'] = async (email, password) => {
+    if (!auth.enabled) {
+      return { ok: false, message: 'Auth is not configured yet.' };
+    }
+
+    const validatedEmail = validateEmail(email);
+    if (!validatedEmail.ok) {
+      return { ok: false, message: validatedEmail.message };
+    }
+
+    if (!password) {
+      return { ok: false, message: 'Enter your password.' };
+    }
+
+    try {
+      const client = getSupabaseClient();
+      const { error } = await client.auth.signInWithPassword({
+        email: validatedEmail.value,
+        password,
+      });
+
+      if (error) {
+        return { ok: false, message: error.message };
+      }
+
+      return { ok: true, message: 'Signed in.' };
+    } catch (error) {
+      return {
+        ok: false,
+        message: toAuthErrorMessage(error, 'Unable to sign in right now.'),
+      };
+    }
+  };
+
+  const signOut: AppStateContextValue['signOut'] = async () => {
+    if (!auth.enabled) {
+      return { ok: false, message: 'Auth is not configured yet.' };
+    }
+
+    if (auth.status !== 'signed_in') {
+      return { ok: true, message: 'Already signed out.' };
+    }
+
+    try {
+      const client = getSupabaseClient();
+      const { error } = await client.auth.signOut();
+      if (error) {
+        return { ok: false, message: error.message };
+      }
+
+      return { ok: true, message: 'Signed out.' };
+    } catch (error) {
+      return {
+        ok: false,
+        message: toAuthErrorMessage(error, 'Unable to sign out right now.'),
+      };
+    }
+  };
+
+  const deleteAccount: AppStateContextValue['deleteAccount'] = async (confirmation) => {
+    if (!auth.enabled) {
+      return { ok: false, message: 'Auth is not configured yet.' };
+    }
+
+    if (auth.status !== 'signed_in' || !auth.userId) {
+      return { ok: false, message: 'Sign in before deleting your account.' };
+    }
+
+    if (confirmation.trim() !== DELETE_ACCOUNT_CONFIRMATION) {
+      return { ok: false, message: `Type ${DELETE_ACCOUNT_CONFIRMATION} to confirm deletion.` };
+    }
+
+    if (!APP_ENV.apiProxyUrl) {
+      return { ok: false, message: 'API proxy URL is not configured.' };
+    }
+
+    try {
+      const client = getSupabaseClient();
+      const { data: sessionData, error: sessionError } = await client.auth.getSession();
+      if (sessionError || !sessionData.session?.access_token) {
+        return { ok: false, message: 'Unable to verify your current session.' };
+      }
+
+      const response = await fetch(`${APP_ENV.apiProxyUrl}/v1/auth/delete-account`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${sessionData.session.access_token}`,
+        },
+        body: JSON.stringify({ confirmation: DELETE_ACCOUNT_CONFIRMATION }),
+      });
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        const message =
+          payload && typeof payload.error === 'string' ? payload.error : 'Account deletion failed on the server.';
+        return { ok: false, message };
+      }
+
+      await AsyncStorage.removeItem(userStorageKey(auth.userId)).catch(() => {
+        // Best-effort local cleanup.
+      });
+      setState(EMPTY_STATE);
+
+      const { error: signOutError } = await client.auth.signOut();
+      if (signOutError) {
+        return {
+          ok: true,
+          message: 'Account deleted, but local sign-out should be completed manually.',
+        };
+      }
+
+      return { ok: true, message: 'Account deleted permanently.' };
+    } catch (error) {
+      return {
+        ok: false,
+        message: toAuthErrorMessage(error, 'Unable to delete account right now.'),
+      };
+    }
   };
 
   const submitOnboardingSeed = async (seed: OnboardingSeedRequest) => {
@@ -197,13 +476,18 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   const fetchFeed = async (cursor?: string | null) => {
     const offset = Number.parseInt(cursor ?? '0', 10) || 0;
-    const cards = buildRecommendationFeed({
+    const localCards = buildRecommendationFeed({
       titles: TITLES,
       profile: state.profile,
       interactions: state.interactions,
       watchlist: state.watchlist,
       limit: FEED_PAGE_SIZE,
       offset,
+    });
+    const cards = await enrichWhyTagsWithLlm({
+      cards: localCards,
+      titles: TITLES,
+      profile: state.profile,
     });
 
     return {
@@ -366,8 +650,13 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     () => ({
       hydrated,
       state,
+      auth,
       catalog: TITLES,
       startSession,
+      signUpWithEmail,
+      signInWithEmail,
+      signOut,
+      deleteAccount,
       submitOnboardingSeed,
       fetchFeed,
       submitInteraction,
@@ -381,7 +670,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       getKpis,
       trackEvent,
     }),
-    [hydrated, state],
+    [hydrated, state, auth],
   );
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;
@@ -395,4 +684,3 @@ export const useAppState = () => {
 
   return context;
 };
-
