@@ -1,8 +1,19 @@
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Text } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { AppShell, GhostButton, Input, Label, PrimaryButton, Row, Section } from '@/components/vf-ui';
+import {
+  AppShell,
+  BodyText,
+  GhostButton,
+  Input,
+  Label,
+  MutedText,
+  PrimaryButton,
+  Row,
+  Section,
+} from '@/components/vf-ui';
+import { VibeTheme } from '@/constants/vf-theme';
 import { useAppState } from '@/context/app-state';
 
 export default function OnboardingStartScreen() {
@@ -55,18 +66,20 @@ export default function OnboardingStartScreen() {
   return (
     <AppShell
       title="VibeFeed"
-      subtitle="Find TV and movies that feel right, quickly. Swipe, save, and see why each pick matches.">
-      <Section title="MVP Focus">
-        <Text>Scope: Swipe + Save + Why</Text>
-        <Text>Catalog: TV + Movies</Text>
-        <Text>Free: Unlimited core swipes and watchlist</Text>
-        <Text>Pro: Advanced discovery controls and tuning</Text>
+      subtitle="Cinematic discovery for TV and movies. Swipe, save, and get clear reasons for every pick.">
+      <Section title="MVP Focus" delayMs={40}>
+        <View style={styles.copyList}>
+          <BodyText>Scope: Swipe + Save + Why</BodyText>
+          <BodyText>Catalog: TV + Movies</BodyText>
+          <BodyText>Free: Unlimited core swipes and watchlist</BodyText>
+          <BodyText>Pro: Advanced discovery controls and tuning</BodyText>
+        </View>
       </Section>
-      <Section title="Privacy First">
-        <Text>Minimal telemetry with explicit consent and in-profile deletion path.</Text>
+      <Section title="Privacy First" delayMs={90}>
+        <BodyText>Minimal telemetry with explicit consent and an in-profile deletion path.</BodyText>
       </Section>
 
-      <Section title="Account (Optional)">
+      <Section title="Account (Optional)" delayMs={130}>
         <Label>Email</Label>
         <Input
           value={email}
@@ -76,6 +89,7 @@ export default function OnboardingStartScreen() {
           autoCapitalize="none"
           autoCorrect={false}
           disabled={busyAction !== null || !auth.enabled}
+          accessibilityLabel="Email address"
         />
         <Label>Password</Label>
         <Input
@@ -86,29 +100,39 @@ export default function OnboardingStartScreen() {
           autoCapitalize="none"
           autoCorrect={false}
           disabled={busyAction !== null || !auth.enabled}
+          accessibilityLabel="Password"
         />
         <Row>
           <PrimaryButton
             label={busyAction === 'sign_up' ? 'Creating account...' : 'Create Account'}
             onPress={onSignUp}
             disabled={busyAction !== null || !auth.enabled}
+            loading={busyAction === 'sign_up'}
           />
           <GhostButton
             label={busyAction === 'sign_in' ? 'Signing in...' : 'Sign In'}
             onPress={onSignIn}
             disabled={busyAction !== null || !auth.enabled}
+            loading={busyAction === 'sign_in'}
           />
         </Row>
-        {auth.enabled ? null : <Text>Auth disabled: add Supabase env vars to enable account login.</Text>}
-        {auth.status === 'signed_in' ? <Text>Signed in as {auth.email ?? auth.userId}</Text> : null}
-        {message ? <Text>{message}</Text> : null}
+        {auth.enabled ? null : <MutedText>Auth is disabled. Add Supabase env vars to enable login.</MutedText>}
+        {auth.status === 'signed_in' ? <MutedText>Signed in as {auth.email ?? auth.userId}</MutedText> : null}
+        {message ? <BodyText>{message}</BodyText> : null}
       </Section>
 
       <PrimaryButton
         label={busyAction === 'guest' ? 'Starting session...' : 'Continue as Guest'}
         onPress={onStartGuest}
         disabled={busyAction !== null}
+        loading={busyAction === 'guest'}
       />
     </AppShell>
   );
 }
+
+const styles = StyleSheet.create({
+  copyList: {
+    gap: VibeTheme.space.xs,
+  },
+});

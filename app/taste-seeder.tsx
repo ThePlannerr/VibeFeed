@@ -1,19 +1,23 @@
 import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { VIBE_CHIPS } from '@/constants/catalog';
 import {
   AppShell,
+  BodyText,
+  FormRow,
   GhostButton,
   InlineValue,
   Input,
   Label,
+  MutedText,
   Pill,
   PrimaryButton,
   Row,
   Section,
 } from '@/components/vf-ui';
+import { VibeTheme } from '@/constants/vf-theme';
 import { useAppState } from '@/context/app-state';
 import { SwipeAction } from '@/types/domain';
 
@@ -93,7 +97,7 @@ export default function TasteSeederScreen() {
     <AppShell
       title="Taste Seeder"
       subtitle="Under 90 seconds: pick favorites, set mood chips, and complete 10 seed swipes.">
-      <Section title="Step 1: Pick 3 to 5 favorites">
+      <Section title="Step 1: Pick 3 to 5 favorites" delayMs={40}>
         <Input value={query} onChangeText={setQuery} placeholder="Search TV or movies..." />
         <Row>
           {searchResults.map((title) => (
@@ -111,7 +115,7 @@ export default function TasteSeederScreen() {
         </Label>
       </Section>
 
-      <Section title="Step 2: Choose 3 mood chips">
+      <Section title="Step 2: Choose 3 mood chips" delayMs={90}>
         <Row>
           {VIBE_CHIPS.map((chip) => (
             <Pill
@@ -127,22 +131,22 @@ export default function TasteSeederScreen() {
         </Label>
       </Section>
 
-      <Section title="Step 3: Seed swipes (10)">
+      <Section title="Step 3: Seed swipes (10)" delayMs={130}>
         {currentSeed ? (
-          <View style={{ gap: 8 }}>
-            <Text style={{ fontSize: 17, fontWeight: '700' }}>{currentSeed.title_name}</Text>
-            <Text>
+          <View style={styles.seedCard}>
+            <Text style={styles.seedTitle}>{currentSeed.title_name}</Text>
+            <MutedText>
               {currentSeed.year} | {currentSeed.genres.join(', ')} | {currentSeed.runtime}m
-            </Text>
-            <Text>{currentSeed.synopsis}</Text>
-            <Row>
+            </MutedText>
+            <BodyText>{currentSeed.synopsis}</BodyText>
+            <FormRow>
               <GhostButton label="Pass" onPress={() => registerSeedSwipe('pass')} />
               <GhostButton label="Like" onPress={() => registerSeedSwipe('like')} />
               <PrimaryButton label="Super Like" onPress={() => registerSeedSwipe('super_like')} />
-            </Row>
+            </FormRow>
           </View>
         ) : (
-          <Text>No candidates found. Adjust your favorites.</Text>
+          <MutedText>No candidates found. Adjust your favorites.</MutedText>
         )}
         <Label>
           Completed <InlineValue>{seedSwipes.length}</InlineValue> / {REQUIRED_SEED_SWIPES}
@@ -157,3 +161,15 @@ export default function TasteSeederScreen() {
     </AppShell>
   );
 }
+
+const styles = StyleSheet.create({
+  seedCard: {
+    gap: VibeTheme.space.sm,
+  },
+  seedTitle: {
+    color: VibeTheme.text,
+    fontFamily: VibeTheme.type.family.bodyStrong,
+    fontSize: VibeTheme.type.size.xl,
+    lineHeight: VibeTheme.type.lineHeight.xl,
+  },
+});

@@ -1,12 +1,15 @@
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
   AppShell,
+  BodyText,
+  FormRow,
   GhostButton,
   InlineValue,
   Label,
+  MutedText,
   Pill,
   PrimaryButton,
   Row,
@@ -24,6 +27,7 @@ export default function SwipeFeedScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [fetchingMore, setFetchingMore] = useState(false);
+  const [interactionBusy, setInteractionBusy] = useState(false);
 
   const current = cards[currentIndex];
   const savedSet = useMemo(() => new Set(state.watchlist), [state.watchlist]);
@@ -65,29 +69,39 @@ export default function SwipeFeedScreen() {
   }, [currentIndex, cards, cursor, loadMore]);
 
   const handleSwipe = async (action: 'pass' | 'like' | 'super_like') => {
-    if (!current) {
+    if (!current || interactionBusy) {
       return;
     }
 
-    await submitInteraction({
-      title_id: current.title_id,
-      action,
-      context: { screen: 'SwipeFeed', card_rank: currentIndex },
-    });
-    setCurrentIndex((value) => value + 1);
+    setInteractionBusy(true);
+    try {
+      await submitInteraction({
+        title_id: current.title_id,
+        action,
+        context: { screen: 'SwipeFeed', card_rank: currentIndex },
+      });
+      setCurrentIndex((value) => value + 1);
+    } finally {
+      setInteractionBusy(false);
+    }
   };
 
   const handleSave = async () => {
-    if (!current) {
+    if (!current || interactionBusy) {
       return;
     }
 
+    setInteractionBusy(true);
     const saved = savedSet.has(current.title_id);
-    await submitInteraction({
-      title_id: current.title_id,
-      action: saved ? 'unsave' : 'save',
-      context: { screen: 'SwipeFeed', card_rank: currentIndex },
-    });
+    try {
+      await submitInteraction({
+        title_id: current.title_id,
+        action: saved ? 'unsave' : 'save',
+        context: { screen: 'SwipeFeed', card_rank: currentIndex },
+      });
+    } finally {
+      setInteractionBusy(false);
+    }
   };
 
   if (loading) {
@@ -101,10 +115,10 @@ export default function SwipeFeedScreen() {
   if (!current) {
     return (
       <AppShell title="Swipe Feed" subtitle="No more recommendations in the current pool.">
-        <Section title="Feed status">
-          <Text>We reached the end of your current feed slice. Pull more or refine preferences.</Text>
+        <Section title="Feed status" delayMs={40}>
+          <BodyText>We reached the end of your current feed slice. Pull more or refine preferences.</BodyText>
           <Row>
-            <PrimaryButton label="Refresh Feed" onPress={loadInitial} />
+            <PrimaryButton label="Refresh Feed" onPress={loadInitial} loading={loading} />
             <GhostButton label="Preferences" onPress={() => router.push('/profile-preferences')} />
           </Row>
         </Section>
@@ -114,9 +128,10 @@ export default function SwipeFeedScreen() {
 
   return (
     <AppShell
+      keyboardAware={false}
       title="Swipe Feed"
       subtitle="Every recommendation includes why-tags. Low-confidence cards are clearly labeled as exploration picks.">
-      <Section title="Navigation">
+      <Section title="Navigation" delayMs={30}>
         <Row>
           <GhostButton label="Watchlist" onPress={() => router.push('/watchlist')} />
           <GhostButton label="Profile" onPress={() => router.push('/profile-preferences')} />
@@ -124,25 +139,27 @@ export default function SwipeFeedScreen() {
         </Row>
       </Section>
 
-      <Section title={`${current.title_name} (${current.year})`}>
-        <Text>
+      <Section title={`${current.title_name} (${current.year})`} delayMs={80}>
+        <MutedText>
           {current.genres.join(', ')} | {current.runtime}m
-        </Text>
+        </MutedText>
         <Label>
           Match score <InlineValue>{Math.round(current.match_score * 100)}%</InlineValue> | Confidence{' '}
           <InlineValue>{current.confidence}</InlineValue>
         </Label>
         {current.exploration_pick ? (
-          <Text style={{ color: VibeTheme.accentAlt, fontWeight: '700' }}>Exploration pick</Text>
+          <Text style={styles.exploration}>Exploration pick</Text>
         ) : null}
         <Row>
           {current.why_tags.slice(0, 3).map((tag) => (
-            <Pill key={tag} label={tag} onPress={() => {}} selected />
+            <Pill key={tag} label={tag} selected />
           ))}
         </Row>
-        <Text>{current.availability_hint}</Text>
+        <BodyText>{current.availability_hint}</BodyText>
         <Pressable
-          style={{ paddingVertical: 6 }}
+          accessibilityRole="link"
+          accessibilityLabel={`Open detail for ${current.title_name}`}
+          style={styles.detailLink}
           onPress={async () => {
             await trackEvent('rec_clicked', {
               title_id: current.title_id,
@@ -151,22 +168,45 @@ export default function SwipeFeedScreen() {
             });
             router.push({ pathname: '/title/[id]', params: { id: current.title_id } });
           }}>
-          <Text style={{ color: VibeTheme.accent, textDecorationLine: 'underline', fontWeight: '700' }}>
-            Open title detail
-          </Text>
+          <Text style={styles.detailLinkText}>Open title detail</Text>
         </Pressable>
-        <Row>
-          <GhostButton label="Pass" onPress={() => handleSwipe('pass')} />
-          <GhostButton label="Like" onPress={() => handleSwipe('like')} />
-          <PrimaryButton label="Super Like" onPress={() => handleSwipe('super_like')} />
+        <FormRow>
+          <GhostButton label="Pass" onPress={() => handleSwipe('pass')} disabled={interactionBusy} />
+          <GhostButton label="Like" onPress={() => handleSwipe('like')} disabled={interactionBusy} />
+          <PrimaryButton
+            label="Super Like"
+            onPress={() => handleSwipe('super_like')}
+            loading={interactionBusy}
+            disabled={interactionBusy}
+          />
           <GhostButton
             label={savedSet.has(current.title_id) ? 'Unsave' : 'Save'}
             onPress={handleSave}
+            disabled={interactionBusy}
           />
-        </Row>
+        </FormRow>
       </Section>
 
-      {fetchingMore ? <Text>Fetching more recommendations...</Text> : null}
+      {fetchingMore ? <MutedText>Fetching more recommendations...</MutedText> : null}
     </AppShell>
   );
 }
+
+const styles = StyleSheet.create({
+  exploration: {
+    color: VibeTheme.accentAlt,
+    fontFamily: VibeTheme.type.family.bodyStrong,
+    fontSize: VibeTheme.type.size.sm,
+    lineHeight: VibeTheme.type.lineHeight.sm,
+  },
+  detailLink: {
+    paddingVertical: VibeTheme.space.xs,
+  },
+  detailLinkText: {
+    color: VibeTheme.accent,
+    textDecorationLine: 'underline',
+    fontFamily: VibeTheme.type.family.bodyStrong,
+    fontSize: VibeTheme.type.size.md,
+    lineHeight: VibeTheme.type.lineHeight.md,
+  },
+});

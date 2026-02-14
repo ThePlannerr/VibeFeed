@@ -1,8 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Text } from 'react-native';
 
-import { AppShell, GhostButton, Pill, PrimaryButton, Row, Section } from '@/components/vf-ui';
+import { AppShell, BodyText, FormRow, GhostButton, Pill, PrimaryButton, Row, Section } from '@/components/vf-ui';
 import { useAppState } from '@/context/app-state';
 import { WatchReaction } from '@/types/domain';
 
@@ -35,16 +34,16 @@ export default function PostWatchPulseScreen() {
 
   return (
     <AppShell title="Post Watch Pulse" subtitle="One-tap feedback to refine future recommendations.">
-      <Section title="Title">
-        <Text>{title ? title.title_name : params.titleId ?? 'Unknown title'}</Text>
+      <Section title="Title" delayMs={40}>
+        <BodyText>{title ? title.title_name : params.titleId ?? 'Unknown title'}</BodyText>
       </Section>
-      <Section title="Did you start watching?">
+      <Section title="Did you start watching?" delayMs={90}>
         <Row>
           <Pill label="Watched" selected={watched} onPress={() => setWatched(true)} />
           <Pill label="Not yet" selected={!watched} onPress={() => setWatched(false)} />
         </Row>
       </Section>
-      <Section title="Quick reaction">
+      <Section title="Quick reaction" delayMs={120}>
         <Row>
           {REACTIONS.map((item) => (
             <Pill
@@ -56,10 +55,15 @@ export default function PostWatchPulseScreen() {
           ))}
         </Row>
       </Section>
-      <Row>
-        <PrimaryButton label={saving ? 'Saving pulse...' : 'Submit Pulse'} onPress={submit} disabled={saving} />
+      <FormRow>
+        <PrimaryButton
+          label={saving ? 'Saving pulse...' : 'Submit Pulse'}
+          onPress={submit}
+          disabled={saving}
+          loading={saving}
+        />
         <GhostButton label="Skip" onPress={() => router.back()} />
-      </Row>
+      </FormRow>
     </AppShell>
   );
 }

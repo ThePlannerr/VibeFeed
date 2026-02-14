@@ -1,8 +1,9 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
-import { Text } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 
-import { AppShell, GhostButton, Pill, PrimaryButton, Row, Section } from '@/components/vf-ui';
+import { AppShell, BodyText, GhostButton, Pill, PrimaryButton, Row, Section } from '@/components/vf-ui';
+import { VibeTheme } from '@/constants/vf-theme';
 import { useAppState } from '@/context/app-state';
 
 export default function TitleDetailScreen() {
@@ -23,25 +24,25 @@ export default function TitleDetailScreen() {
 
   return (
     <AppShell title={title.title_name} subtitle={`${title.year} | ${title.runtime}m`}>
-      <Section title="Synopsis">
-        <Text>{title.synopsis}</Text>
+      <Section title="Synopsis" delayMs={40}>
+        <BodyText>{title.synopsis}</BodyText>
       </Section>
-      <Section title="Tags">
+      <Section title="Tags" delayMs={90}>
         <Row>
           {title.genres.map((genre) => (
-            <Pill key={genre} label={genre} onPress={() => {}} />
+            <Pill key={genre} label={genre} />
           ))}
           {title.moods.map((mood) => (
-            <Pill key={mood} label={mood} onPress={() => {}} />
+            <Pill key={mood} label={mood} />
           ))}
         </Row>
       </Section>
-      <Section title="Cast">
-        <Text>{title.cast.join(', ')}</Text>
+      <Section title="Cast" delayMs={120}>
+        <BodyText>{title.cast.join(', ')}</BodyText>
       </Section>
-      <Section title="Availability and Trailer">
-        <Text>{title.availability_hint}</Text>
-        <Text>Trailer link placeholder (streaming integration deferred in MVP).</Text>
+      <Section title="Availability and Trailer" delayMs={150}>
+        <BodyText>{title.availability_hint}</BodyText>
+        <Text style={styles.metaText}>Trailer link placeholder (streaming integration deferred in MVP).</Text>
       </Section>
       <Row>
         <GhostButton
@@ -62,3 +63,12 @@ export default function TitleDetailScreen() {
     </AppShell>
   );
 }
+
+const styles = StyleSheet.create({
+  metaText: {
+    color: VibeTheme.textMuted,
+    fontFamily: VibeTheme.type.family.body,
+    fontSize: VibeTheme.type.size.sm,
+    lineHeight: VibeTheme.type.lineHeight.sm,
+  },
+});

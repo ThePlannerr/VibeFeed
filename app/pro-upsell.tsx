@@ -1,8 +1,7 @@
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Text } from 'react-native';
 
-import { AppShell, GhostButton, PrimaryButton, Section } from '@/components/vf-ui';
+import { AppShell, BodyText, GhostButton, PrimaryButton, Section } from '@/components/vf-ui';
 import { useAppState } from '@/context/app-state';
 
 export default function ProUpsellScreen() {
@@ -30,19 +29,24 @@ export default function ProUpsellScreen() {
     <AppShell
       title="VibeFeed Pro"
       subtitle="Monetization without trust tradeoff: core discovery remains free, precision controls are Pro.">
-      <Section title="Pro unlocks">
-        <Text>Runtime windows and language preference controls</Text>
-        <Text>Mood intensity and recommendation tuning sliders</Text>
-        <Text>Profile shift insights and top matched motifs</Text>
-        <Text>Priority refresh frequency</Text>
+      <Section title="Pro unlocks" delayMs={40}>
+        <BodyText>Runtime windows and language preference controls</BodyText>
+        <BodyText>Mood intensity and recommendation tuning sliders</BodyText>
+        <BodyText>Profile shift insights and top matched motifs</BodyText>
+        <BodyText>Priority refresh frequency</BodyText>
       </Section>
-      <Section title="Pricing assumption">
-        <Text>Single monthly plan during MVP validation.</Text>
+      <Section title="Pricing assumption" delayMs={90}>
+        <BodyText>Single monthly plan during MVP validation.</BodyText>
       </Section>
       {state.is_pro ? (
         <GhostButton label="Pro is already active" onPress={() => router.replace('/profile-preferences')} />
       ) : (
-        <PrimaryButton label={upgrading ? 'Upgrading...' : 'Upgrade to Pro'} onPress={handleUpgrade} disabled={upgrading} />
+        <PrimaryButton
+          label={upgrading ? 'Upgrading...' : 'Upgrade to Pro'}
+          onPress={handleUpgrade}
+          disabled={upgrading}
+          loading={upgrading}
+        />
       )}
     </AppShell>
   );

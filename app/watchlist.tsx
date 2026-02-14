@@ -1,8 +1,9 @@
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { Text } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 
-import { AppShell, GhostButton, PrimaryButton, Row, Section } from '@/components/vf-ui';
+import { AppShell, BodyText, GhostButton, PrimaryButton, Row, Section } from '@/components/vf-ui';
+import { VibeTheme } from '@/constants/vf-theme';
 import { useAppState } from '@/context/app-state';
 
 export default function WatchlistScreen() {
@@ -13,18 +14,18 @@ export default function WatchlistScreen() {
   return (
     <AppShell title="Watchlist" subtitle="Saved titles are available offline from local storage in MVP mode.">
       {watchlistTitles.length === 0 ? (
-        <Section title="No saved titles yet">
-          <Text>Save titles from swipe feed or detail to build your watchlist.</Text>
+        <Section title="No saved titles yet" delayMs={40}>
+          <BodyText>Save titles from swipe feed or detail to build your watchlist.</BodyText>
           <PrimaryButton label="Back to Swipe Feed" onPress={() => router.replace('/swipe-feed')} />
         </Section>
       ) : null}
 
       {watchlistTitles.map((title) => (
-        <Section key={title.id} title={`${title.title_name} (${title.year})`}>
-          <Text>
+        <Section key={title.id} title={`${title.title_name} (${title.year})`} delayMs={90}>
+          <Text style={styles.metaText}>
             {title.genres.join(', ')} | {title.runtime}m
           </Text>
-          <Text>{title.availability_hint}</Text>
+          <BodyText>{title.availability_hint}</BodyText>
           <Row>
             <GhostButton
               label="Details"
@@ -50,3 +51,12 @@ export default function WatchlistScreen() {
     </AppShell>
   );
 }
+
+const styles = StyleSheet.create({
+  metaText: {
+    color: VibeTheme.textMuted,
+    fontFamily: VibeTheme.type.family.body,
+    fontSize: VibeTheme.type.size.sm,
+    lineHeight: VibeTheme.type.lineHeight.sm,
+  },
+});
