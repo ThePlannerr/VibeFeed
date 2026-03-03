@@ -1,6 +1,6 @@
 import { Link } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   ActivityIndicator,
@@ -16,6 +16,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Edge, useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
 
 import { VibeTheme } from '@/constants/vf-theme';
 
@@ -54,7 +55,7 @@ export function AppShell({
   children,
   keyboardAware = true,
   safeAreaEdges = DEFAULT_SAFE_AREA_EDGES,
-  contentWidth = 760,
+  contentWidth = 860,
 }: {
   title: string;
   subtitle?: string;
@@ -84,10 +85,12 @@ export function AppShell({
         },
       ]}>
       <View style={[styles.contentInner, { maxWidth: contentWidth }]}>
-        <Text accessibilityRole="header" style={styles.title}>
-          {title}
-        </Text>
-        {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+        <View style={styles.headerBlock}>
+          <Text accessibilityRole="header" style={styles.title}>
+            {title}
+          </Text>
+          {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+        </View>
         {children}
       </View>
     </ScrollView>
@@ -96,11 +99,14 @@ export function AppShell({
   return (
     <View style={styles.shell}>
       <LinearGradient
-        colors={[VibeTheme.colors.backgroundAlt, VibeTheme.colors.background]}
+        colors={['#03040A', '#071022', '#0D1A33', '#03040A']}
         start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+        end={{ x: 0.9, y: 1 }}
         style={StyleSheet.absoluteFill}
       />
+      <View pointerEvents="none" style={styles.backgroundAuraTop} />
+      <View pointerEvents="none" style={styles.backgroundAuraCenter} />
+      <View pointerEvents="none" style={styles.backgroundAuraBottom} />
       {keyboardAware ? (
         <KeyboardAvoidingView
           style={styles.shell}
@@ -229,9 +235,14 @@ export function Pill({
     );
   }
 
+  const handlePress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress?.();
+  }, [onPress]);
+
   return (
     <Pressable
-      onPress={onPress}
+      onPress={handlePress}
       disabled={blocked}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
@@ -258,9 +269,14 @@ type ButtonProps = {
 
 export function PrimaryButton({ label, onPress, disabled, loading, accessibilityLabel }: ButtonProps) {
   const blocked = Boolean(disabled || loading);
+  const handlePress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    onPress();
+  }, [onPress]);
+
   return (
     <Pressable
-      onPress={onPress}
+      onPress={handlePress}
       disabled={blocked}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
@@ -282,9 +298,14 @@ export function PrimaryButton({ label, onPress, disabled, loading, accessibility
 
 export function GhostButton({ label, onPress, disabled, loading, accessibilityLabel }: ButtonProps) {
   const blocked = Boolean(disabled || loading);
+  const handlePress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress();
+  }, [onPress]);
+
   return (
     <Pressable
-      onPress={onPress}
+      onPress={handlePress}
       disabled={blocked}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
@@ -359,11 +380,11 @@ export function Input({
 export const panelStyles = StyleSheet.create({
   panel: {
     borderWidth: VibeTheme.stroke.thin,
-    borderColor: VibeTheme.border,
-    backgroundColor: VibeTheme.panel,
+    borderColor: 'rgba(124, 170, 255, 0.28)',
+    backgroundColor: 'rgba(9, 14, 24, 0.86)',
     borderRadius: VibeTheme.radius.md,
     padding: VibeTheme.space.md,
-    gap: VibeTheme.space.sm,
+    gap: VibeTheme.space.md,
   },
 });
 
@@ -382,34 +403,71 @@ const styles = StyleSheet.create({
   contentInner: {
     alignSelf: 'center',
     width: '100%',
-    gap: VibeTheme.space.md,
+    gap: VibeTheme.space.lg,
+  },
+  backgroundAuraTop: {
+    position: 'absolute',
+    width: 340,
+    height: 340,
+    borderRadius: 170,
+    top: -110,
+    right: -30,
+    backgroundColor: 'rgba(255, 42, 61, 0.28)',
+  },
+  backgroundAuraCenter: {
+    position: 'absolute',
+    width: 360,
+    height: 360,
+    borderRadius: 180,
+    top: '22%',
+    left: '40%',
+    backgroundColor: 'rgba(65, 126, 255, 0.12)',
+  },
+  backgroundAuraBottom: {
+    position: 'absolute',
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    bottom: -90,
+    left: -20,
+    backgroundColor: 'rgba(39, 232, 167, 0.2)',
+  },
+  headerBlock: {
+    gap: VibeTheme.space.xs,
   },
   title: {
     fontSize: VibeTheme.type.size.xxl,
     lineHeight: VibeTheme.type.lineHeight.xxl,
     color: VibeTheme.text,
     fontFamily: VibeTheme.type.family.display,
-    letterSpacing: 0.4,
+    letterSpacing: 0.9,
   },
   subtitle: {
     color: VibeTheme.textMuted,
     fontSize: VibeTheme.type.size.md,
     lineHeight: VibeTheme.type.lineHeight.md,
     fontFamily: VibeTheme.type.family.body,
+    maxWidth: 680,
   },
   section: {
     borderWidth: VibeTheme.stroke.thin,
-    borderColor: VibeTheme.border,
-    backgroundColor: VibeTheme.panelStrong,
+    borderColor: 'rgba(124, 170, 255, 0.26)',
+    backgroundColor: 'rgba(10, 16, 28, 0.72)',
     borderRadius: VibeTheme.radius.lg,
     padding: VibeTheme.space.md,
-    gap: VibeTheme.space.sm,
+    gap: VibeTheme.space.md,
+    shadowColor: '#000000',
+    shadowOpacity: 0.45,
+    shadowOffset: { width: 0, height: 10 },
+    shadowRadius: 28,
+    elevation: 4,
   },
   sectionTitle: {
     fontSize: VibeTheme.type.size.lg,
     lineHeight: VibeTheme.type.lineHeight.lg,
     color: VibeTheme.text,
     fontFamily: VibeTheme.type.family.bodyStrong,
+    letterSpacing: 0.35,
   },
   row: {
     flexDirection: 'row',
@@ -425,17 +483,17 @@ const styles = StyleSheet.create({
     flexWrap: 'nowrap',
   },
   label: {
-    color: VibeTheme.text,
+    color: '#CFE1FF',
     fontSize: VibeTheme.type.size.sm,
     lineHeight: VibeTheme.type.lineHeight.sm,
     fontFamily: VibeTheme.type.family.bodyStrong,
   },
   inlineValue: {
-    color: VibeTheme.textMuted,
+    color: VibeTheme.colors.accentAlt,
     fontFamily: VibeTheme.type.family.bodyStrong,
   },
   bodyText: {
-    color: VibeTheme.text,
+    color: '#EAF0FF',
     fontFamily: VibeTheme.type.family.body,
     fontSize: VibeTheme.type.size.md,
     lineHeight: VibeTheme.type.lineHeight.md,
@@ -450,15 +508,15 @@ const styles = StyleSheet.create({
     borderWidth: VibeTheme.stroke.thin,
     borderColor: VibeTheme.border,
     minHeight: 44,
-    paddingVertical: VibeTheme.space.sm,
+    paddingVertical: 10,
     paddingHorizontal: VibeTheme.space.md,
     borderRadius: VibeTheme.radius.pill,
-    backgroundColor: VibeTheme.panel,
+    backgroundColor: 'rgba(9, 14, 24, 0.92)',
     justifyContent: 'center',
   },
   pillSelected: {
-    backgroundColor: VibeTheme.accent,
-    borderColor: VibeTheme.accent,
+    backgroundColor: 'rgba(39, 232, 167, 0.18)',
+    borderColor: 'rgba(39, 232, 167, 0.95)',
   },
   pillPressed: {
     opacity: 0.88,
@@ -474,12 +532,12 @@ const styles = StyleSheet.create({
     fontFamily: VibeTheme.type.family.bodyStrong,
   },
   pillTextSelected: {
-    color: VibeTheme.colors.onAccent,
+    color: VibeTheme.colors.accentAlt,
   },
   buttonBase: {
-    minHeight: 48,
+    minHeight: 50,
     borderRadius: VibeTheme.radius.md,
-    paddingVertical: VibeTheme.space.sm,
+    paddingVertical: 10,
     paddingHorizontal: VibeTheme.space.md,
     alignItems: 'center',
     justifyContent: 'center',
@@ -487,23 +545,32 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     backgroundColor: VibeTheme.accent,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 130, 140, 0.75)',
+    shadowColor: VibeTheme.accent,
+    shadowOpacity: 0.42,
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 16,
+    elevation: 5,
   },
   primaryButtonText: {
     color: VibeTheme.colors.onAccent,
     fontSize: VibeTheme.type.size.md,
     lineHeight: VibeTheme.type.lineHeight.md,
     fontFamily: VibeTheme.type.family.bodyStrong,
+    letterSpacing: 0.25,
   },
   ghostButton: {
     borderWidth: VibeTheme.stroke.thin,
-    borderColor: VibeTheme.border,
-    backgroundColor: VibeTheme.panel,
+    borderColor: 'rgba(94, 126, 181, 0.55)',
+    backgroundColor: 'rgba(8, 13, 24, 0.9)',
   },
   ghostButtonText: {
     color: VibeTheme.text,
     fontSize: VibeTheme.type.size.md,
     lineHeight: VibeTheme.type.lineHeight.md,
     fontFamily: VibeTheme.type.family.bodyStrong,
+    letterSpacing: 0.2,
   },
   buttonPressed: {
     opacity: 0.9,
@@ -514,11 +581,11 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: VibeTheme.stroke.thin,
-    borderColor: VibeTheme.border,
-    backgroundColor: VibeTheme.panel,
+    borderColor: 'rgba(94, 126, 181, 0.5)',
+    backgroundColor: 'rgba(6, 10, 18, 0.95)',
     borderRadius: VibeTheme.radius.sm,
     paddingHorizontal: VibeTheme.space.md,
-    minHeight: 48,
+    minHeight: 50,
     color: VibeTheme.text,
     fontSize: VibeTheme.type.size.md,
     lineHeight: VibeTheme.type.lineHeight.md,
